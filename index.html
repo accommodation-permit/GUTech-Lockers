@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>University Locker Allocation System (1,360 Lockers)</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts: Cairo -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- PapaParse CDN for CSV Import/Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        cairo: ['Cairo', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0284c7',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #f8fafc;
+        }
+        
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        .locker-card {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .locker-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 12px -2px rgba(0, 0, 0, 0.08);
+        }
+
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            body { background: white; color: black; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col justify-between">
+
+    <!-- Header -->
+    <header class="bg-slate-900 text-white shadow-xl sticky top-0 z-40 no-print border-b border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-20">
+                <div class="flex items-center space-x-4">
+                    <div class="p-3 bg-brand-500/20 text-brand-400 rounded-2xl border border-brand-500/30">
+                        <i class="fa-solid fa-boxes-stacked text-2xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl sm:text-2xl font-black tracking-tight flex items-center gap-2">
+                            <span>University Locker Allocation System</span>
+                            <span class="text-xs bg-brand-600 text-white font-bold px-2.5 py-0.5 rounded-full">1,360 Lockers</span>
+                        </h1>
+                        <p class="text-xs text-slate-400">Precise allocation: Foundation (F: 1–319) and three general tiers (320–1,360)</p>
+                    </div>
+                </div>
+                
+                <div class="flex items-center space-x-2">
+                    <button onclick="loadSampleStudents()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold rounded-xl transition shadow flex items-center gap-2">
+                        <i class="fa-solid fa-users-viewfinder"></i>
+                        <span class="hidden sm:inline">Load Sample Students</span>
+                    </button>
+                    <button onclick="confirmResetAllocations()" class="px-3.5 py-2 bg-rose-600/80 hover:bg-rose-600 text-white text-xs sm:text-sm font-bold rounded-xl transition flex items-center gap-2">
+                        <i class="fa-solid fa-rotate-right"></i>
+                        <span class="hidden sm:inline">Reset Allocations</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="bg-slate-950/90 backdrop-blur-md border-t border-slate-800">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <nav class="flex space-x-2 overflow-x-auto py-2.5" id="nav-tabs">
+                    <button onclick="switchTab('dashboard')" id="tab-dashboard" class="tab-btn px-4 py-2 text-sm font-bold rounded-xl text-white bg-brand-600 transition flex items-center gap-2 whitespace-nowrap">
+                        <i class="fa-solid fa-chart-pie"></i>
+                        <span>Dashboard</span>
+                    </button>
+                    <button onclick="switchTab('students')" id="tab-students" class="tab-btn px-4 py-2 text-sm font-bold rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition flex items-center gap-2 whitespace-nowrap">
+                        <i class="fa-solid fa-file-import"></i>
+                        <span>Students &amp; Import (<span id="students-count-badge">0</span>)</span>
+                    </button>
+                    <button onclick="switchTab('results')" id="tab-results" class="tab-btn px-4 py-2 text-sm font-bold rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition flex items-center gap-2 whitespace-nowrap">
+                        <i class="fa-solid fa-list-check"></i>
+                        <span>Allocation Results</span>
+                    </button>
+                    <button onclick="switchTab('lockers-map')" id="tab-lockers-map" class="tab-btn px-4 py-2 text-sm font-bold rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition flex items-center gap-2 whitespace-nowrap">
+                        <i class="fa-solid fa-border-all"></i>
+                        <span>Locker Map (1,360)</span>
+                    </button>
+                    <button onclick="switchTab('reserved-manage')" id="tab-reserved-manage" class="tab-btn px-4 py-2 text-sm font-bold rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition flex items-center gap-2 whitespace-nowrap">
+                        <i class="fa-solid fa-lock text-amber-400"></i>
+                        <span>Reserved &amp; Disabled Lockers</span>
+                    </button>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Body Container -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full">
+
+        <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2"></div>
+
+        <!-- ================= TAB 1: DASHBOARD ================= -->
+        <section id="content-dashboard" class="tab-content space-y-6">
+            
+            <!-- Rules Explanation Banner -->
+            <div class="bg-gradient-to-br from-slate-900 via-slate-800 to-brand-950 text-white p-6 rounded-2xl shadow-lg border border-slate-700/60 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                <div class="space-y-2">
+                    <div class="flex items-center gap-2">
+                        <span class="px-2.5 py-1 bg-emerald-500/20 text-emerald-400 font-bold text-xs rounded-lg border border-emerald-500/30">Automatic Allocation Rules for 1,360 Lockers</span>
+                    </div>
+                    <h3 class="font-black text-lg text-white">Locker Allocation Rules and Three-Tier Priority</h3>
+                    <ul class="text-xs text-slate-300 space-y-1.5 list-disc list-inside leading-relaxed">
+                        <li><strong>Foundation students (Foundation F):</strong> Lockers <span class="text-amber-300 font-bold">1–319</span> are reserved for Foundation students.</li>
+                        <li><strong>General students:</strong> Lockers <span class="text-brand-300 font-bold">320–1,360</span> are split into alternating tiers:
+                            <br>• <span class="text-emerald-400 font-bold">1st Tier (Top):</span> 320, 323, 326, 329... (Priority 1)
+                            <br>• <span class="text-blue-400 font-bold">2nd Tier (Middle):</span> 321, 324, 327, 330... (Priority 2)
+                            <br>• <span class="text-slate-400 font-bold">3rd Tier (Bottom):</span> 322, 325, 328, 331... (Priority 3)</li>
+                    </ul>
+                </div>
+                
+                <div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto shrink-0">
+                    <button onclick="runAutoAllocation()" class="px-6 py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm rounded-xl transition shadow-lg flex items-center justify-center gap-2 w-full md:w-auto">
+                        <i class="fa-solid fa-wand-magic-sparkles text-lg"></i>
+                        <span>Run Automatic Allocation</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-bold text-slate-400 uppercase">Total University Lockers</p>
+                        <h3 class="text-2xl font-black text-slate-800 mt-1" id="stat-total-lockers">1360</h3>
+                        <p class="text-xs text-slate-500 mt-1">319 Foundation + 1,041 General</p>
+                    </div>
+                    <div class="w-12 h-12 bg-blue-50 text-brand-600 rounded-2xl flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-boxes-stacked"></i>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-bold text-slate-400 uppercase">Registered Students</p>
+                        <h3 class="text-2xl font-black text-slate-800 mt-1" id="stat-total-students">0</h3>
+                        <p class="text-xs text-amber-600 font-bold mt-1" id="stat-unassigned-students">0 awaiting allocation</p>
+                    </div>
+                    <div class="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-user-graduate"></i>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-bold text-slate-400 uppercase">Allocated Lockers</p>
+                        <h3 class="text-2xl font-black text-emerald-600 mt-1" id="stat-allocated-lockers">0</h3>
+                        <p class="text-xs text-emerald-600 font-bold mt-1" id="stat-allocation-rate">0% occupancy</p>
+                    </div>
+                    <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-lock-open"></i>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-bold text-slate-400 uppercase">Reserved / Broken Lockers</p>
+                        <h3 class="text-2xl font-black text-rose-600 mt-1" id="stat-reserved-lockers">0</h3>
+                        <p class="text-xs text-slate-400 mt-1" id="stat-broken-lockers">0 broken / reserved</p>
+                    </div>
+                    <div class="w-12 h-12 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tier Progress -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-5">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-layer-group text-brand-600"></i>
+                    <span>Occupancy by Tier and Section</span>
+                </h3>
+
+                <div class="space-y-4" id="tier-progress-bars">
+                    <!-- Dynamic Progress Bars -->
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= TAB 2: STUDENTS ================= -->
+        <section id="content-students" class="tab-content hidden space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Import & Add Student Form -->
+                <div class="space-y-6">
+                    <!-- Upload CSV -->
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                        <h3 class="text-base font-bold text-slate-800 mb-1 flex items-center gap-2">
+                            <i class="fa-solid fa-file-csv text-emerald-600"></i>
+                            <span>Import Form Responses (CSV)</span>
+                        </h3>
+                        <p class="text-xs text-slate-500 mb-4">Upload the CSV exported from your registration form. Excel workbooks (.xlsx) are not supported.</p>
+                        
+                        <div class="border-2 border-dashed border-slate-300 hover:border-brand-500 rounded-xl p-6 text-center bg-slate-50/50 cursor-pointer transition relative">
+                            <input type="file" id="csv-file-input" accept=".csv" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="handleCSVUpload(event)">
+                            <i class="fa-solid fa-cloud-arrow-up text-3xl text-brand-600 mb-2"></i>
+                            <p class="text-sm font-bold text-slate-700">Click to upload student responses</p>
+                            <p class="text-xs text-slate-400 mt-1">Recognized columns: Name, Student ID, and Stage/Major</p>
+                        </div>
+                    </div>
+
+                    <!-- Add Student Manual -->
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                        <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
+                            <i class="fa-solid fa-user-plus text-brand-600"></i>
+                            <span>Add Student Manually</span>
+                        </h3>
+                        <form onsubmit="handleAddStudent(event)" class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Student Name</label>
+                                <input type="text" id="m-student-name" required placeholder="e.g. Alex Morgan" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Student ID</label>
+                                <input type="text" id="m-student-id" required placeholder="e.g. 44100982" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Academic Stage / Category</label>
+                                <select id="m-student-type" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                                    <option value="General">General students - lockers 320–1,360</option>
+                                    <option value="Foundation">Foundation students - lockers F (1–319)</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm rounded-xl transition flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-plus"></i>
+                                <span>Add to List</span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Table of Raw Students -->
+                <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col h-full">
+                    <div class="p-5 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                            <h3 class="text-base font-bold text-slate-800">Registered Students</h3>
+                            <p class="text-xs text-slate-500 mt-0.5">Ordered by registration time</p>
+                        </div>
+                        <div class="flex items-center gap-2 w-full sm:w-auto">
+                            <input type="text" id="search-students" oninput="renderStudentsTable()" placeholder="Search by name or ID..." class="w-full sm:w-48 px-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+                            <button onclick="clearStudentsList()" class="px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50 rounded-xl border border-rose-200 font-bold transition">Clear All</button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto flex-grow">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-slate-50 text-slate-500 text-xs font-bold border-b border-slate-200">
+                                <tr>
+                                    <th class="px-4 py-3">#</th>
+                                    <th class="px-4 py-3">Student Name</th>
+                                    <th class="px-4 py-3">Student ID</th>
+                                    <th class="px-4 py-3">Stage</th>
+                                    <th class="px-4 py-3 text-center">Assigned Locker</th>
+                                    <th class="px-4 py-3 text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="students-table-body" class="divide-y divide-slate-100">
+                                <!-- Dynamic rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= TAB 3: RESULTS & EXCHANGES ================= -->
+        <section id="content-results" class="tab-content hidden space-y-6">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+                
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-4">
+                    <div>
+                        <h2 class="text-xl font-black text-slate-800">Final Allocation Results &amp; Locker Management</h2>
+                        <p class="text-xs text-slate-500 mt-1">Edit assignments, replace a broken locker, and export results</p>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button onclick="runAutoAllocation()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            <span>Run Allocation</span>
+                        </button>
+                        <button onclick="exportResultsToCSV()" class="px-3.5 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-file-excel"></i>
+                            <span>Export CSV</span>
+                        </button>
+                        <button onclick="window.print()" class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-print"></i>
+                            <span>Print Report</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Filter & Search Results -->
+                <div class="flex flex-col sm:flex-row gap-3 justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <i class="fa-solid fa-magnifying-glass text-slate-400 text-xs"></i>
+                        <input type="text" id="search-results-input" oninput="renderResultsTable()" placeholder="Search by student or locker number..." class="px-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 w-full sm:w-64">
+                    </div>
+                    <div class="text-xs text-slate-500 font-bold">
+                        Active assignments: <span id="results-count-allocated" class="text-emerald-700 font-black">0</span> students
+                    </div>
+                </div>
+
+                <!-- Results Table -->
+                <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-slate-900 text-slate-100 text-xs font-bold">
+                            <tr>
+                                <th class="px-4 py-3.5">#</th>
+                                <th class="px-4 py-3.5">Student Name</th>
+                                <th class="px-4 py-3.5">Student ID</th>
+                                <th class="px-4 py-3.5">Stage</th>
+                                <th class="px-4 py-3.5 text-center">Assigned Locker</th>
+                                <th class="px-4 py-3.5 text-center">Tier</th>
+                                <th class="px-4 py-3.5 text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="results-table-body" class="divide-y divide-slate-100 bg-white">
+                            <!-- Dynamic Rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= TAB 4: LOCKERS MAP ================= -->
+        <section id="content-lockers-map" class="tab-content hidden space-y-6">
+            <!-- Filter Bar & Category Tabs -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+                    <!-- Tier selector tabs -->
+                    <div class="flex flex-wrap items-center gap-2 w-full md:w-auto" id="tier-filter-buttons">
+                        <button onclick="setMapTier('1st Tier')" id="btn-tier-1st Tier" class="map-tier-btn px-3.5 py-1.5 text-xs font-bold rounded-xl bg-brand-600 text-white transition">
+                            1st Tier (Top)
+                        </button>
+                        <button onclick="setMapTier('2nd Tier')" id="btn-tier-2nd Tier" class="map-tier-btn px-3.5 py-1.5 text-xs font-bold rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition">
+                            2nd Tier (Middle)
+                        </button>
+                        <button onclick="setMapTier('3rd Tier')" id="btn-tier-3rd Tier" class="map-tier-btn px-3.5 py-1.5 text-xs font-bold rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition">
+                            3rd Tier (Bottom)
+                        </button>
+                        <button onclick="setMapTier('Foundation F')" id="btn-tier-Foundation F" class="map-tier-btn px-3.5 py-1.5 text-xs font-bold rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition">
+                            Foundation (F: 1–319)
+                        </button>
+                    </div>
+
+                    <!-- Search & Legend -->
+                    <div class="flex items-center gap-3 w-full md:w-auto justify-end">
+                        <div class="flex items-center gap-3 text-xs font-bold">
+                            <span class="flex items-center gap-1.5">
+                                <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span> Available
+                            </span>
+                            <span class="flex items-center gap-1.5">
+                                <span class="w-3 h-3 rounded-full bg-rose-500 inline-block"></span> Allocated
+                            </span>
+                            <span class="flex items-center gap-1.5">
+                                <span class="w-3 h-3 rounded-full bg-amber-500 inline-block"></span> Reserved / Broken
+                            </span>
+                        </div>
+                        <input type="number" id="map-search-input" oninput="renderLockersGrid()" placeholder="Locker number..." class="px-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 w-28">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lockers Visual Grid Container -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
+                    <h4 class="font-bold text-slate-800 text-sm" id="map-section-title">Lockers: 1st Tier</h4>
+                    <span class="text-xs text-slate-400 font-mono" id="map-section-count">0 lockers</span>
+                </div>
+                
+                <div id="lockers-grid-container" class="grid grid-cols-3 sm:grid-cols-6 md:grid-cols-10 lg:grid-cols-12 gap-2.5 max-h-[600px] overflow-y-auto p-1">
+                    <!-- Dynamic Grid Buttons -->
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= TAB 5: RESERVED LOCKERS MANAGEMENT ================= -->
+        <section id="content-reserved-manage" class="tab-content hidden space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Add Blocked Locker Form -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                    <div class="flex items-center gap-3 border-b border-slate-100 pb-3">
+                        <div class="p-2.5 bg-amber-100 text-amber-700 rounded-xl">
+                            <i class="fa-solid fa-lock text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-slate-800 text-base">Reserve / Disable Lockers</h3>
+                            <p class="text-xs text-slate-500">Prevent unavailable lockers from being assigned</p>
+                        </div>
+                    </div>
+
+                    <form onsubmit="handleBlockLockerSubmit(event)" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Locker Numbers</label>
+                            <input type="text" id="blocked-input" required placeholder="e.g. 320, 323, or 320-330" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none font-mono">
+                            <p class="text-[11px] text-slate-400 mt-1">Enter comma-separated numbers or a range (e.g. 320-330)</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Reservation / Disable Reason</label>
+                            <input type="text" id="blocked-reason" placeholder="e.g. Broken lock / Reserved for administration" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                        </div>
+
+                        <button type="submit" class="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-sm rounded-xl transition shadow flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-ban"></i>
+                            <span>Disable Selected Lockers</span>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Reserved List Table -->
+                <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col h-full">
+                    <div class="p-5 border-b border-slate-200 flex items-center justify-between">
+                        <h3 class="font-bold text-slate-800 text-sm">Currently Reserved / Disabled Lockers</h3>
+                        <button onclick="unblockAllLockers()" class="px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50 border border-rose-200 font-bold rounded-xl transition">Enable All</button>
+                    </div>
+
+                    <div class="overflow-x-auto flex-grow">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-slate-50 text-slate-500 text-xs font-bold border-b border-slate-200">
+                                <tr>
+                                    <th class="px-4 py-3">Locker Number</th>
+                                    <th class="px-4 py-3">Tier / Category</th>
+                                    <th class="px-4 py-3">Reason</th>
+                                    <th class="px-4 py-3 text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reserved-table-body" class="divide-y divide-slate-100">
+                                <!-- Dynamic Reserved Rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modal for Manual Locker Change -->
+    <div id="change-locker-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 relative">
+            <button onclick="closeChangeLockerModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-lg">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            
+            <div class="flex items-center gap-3 border-b border-slate-100 pb-3">
+                <div class="w-10 h-10 rounded-xl bg-brand-100 text-brand-700 flex items-center justify-center font-black text-lg">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                </div>
+                <div>
+                    <h3 class="font-black text-slate-800 text-base">Change Student Locker</h3>
+                    <p class="text-xs text-slate-500" id="change-modal-student-name">Student</p>
+                </div>
+            </div>
+
+            <form onsubmit="handleManualLockerChange(event)" class="space-y-4">
+                <input type="hidden" id="change-modal-student-id">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Select a new available locker (1–1,360)</label>
+                    <input type="number" id="change-modal-locker-number" min="1" max="1360" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 font-mono">
+                    <p class="text-[11px] text-slate-400 mt-1">The locker must be available and not assigned to another student.</p>
+                </div>
+
+                <div class="flex items-center gap-2 pt-2">
+                    <button type="submit" class="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl transition">
+                        Save Changes
+                    </button>
+                    <button type="button" onclick="closeChangeLockerModal()" class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Locker View Modal -->
+    <div id="locker-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 space-y-4 relative">
+            <button onclick="closeLockerModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-lg">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            
+            <div class="flex items-center gap-3 border-b border-slate-100 pb-3">
+                <div class="w-12 h-12 rounded-xl bg-brand-100 text-brand-700 flex items-center justify-center font-black text-xl" id="m-modal-icon">
+                    <i class="fa-solid fa-lock"></i>
+                </div>
+                <div>
+                    <h3 class="font-black text-slate-800 text-lg" id="m-modal-number">Locker #0</h3>
+                    <p class="text-xs text-slate-500 font-bold" id="m-modal-tier">Tier</p>
+                </div>
+            </div>
+
+            <div id="m-modal-body" class="space-y-3">
+                <!-- Dynamic body content -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-slate-900 text-slate-400 text-xs py-6 border-t border-slate-800 no-print mt-auto">
+        <div class="max-w-7xl mx-auto px-4 text-center space-y-1">
+            <p class="font-bold text-slate-300">University Locker Management &amp; Allocation System (1,360 Lockers)</p>
+            <p class="text-slate-500">Accurate allocation with duplicate-free replacement of broken lockers</p>
+        </div>
+    </footer>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // ================= GLOBAL STATE =================
+        let lockers = [];
+        let students = [];
+        let currentMapTier = '1st Tier';
+
+        // Demo sample students
+        const sampleStudentList = [
+            { name: "Alex Morgan", studentId: "44100101", type: "General" },
+            { name: "Sarah Johnson", studentId: "44100102", type: "General" },
+            { name: "David Smith", studentId: "44100103", type: "General" },
+            { name: "Emily Brown", studentId: "44100104", type: "Foundation" },
+            { name: "Omar Wilson", studentId: "44100105", type: "General" },
+            { name: "Maya Davis", studentId: "44100106", type: "General" },
+            { name: "Adam Taylor", studentId: "44100107", type: "Foundation" },
+            { name: "Nora Anderson", studentId: "44100108", type: "General" },
+            { name: "Ryan Thomas", studentId: "44100109", type: "General" },
+            { name: "Lina Martinez", studentId: "44100110", type: "General" },
+            { name: "Noah Garcia", studentId: "44100111", type: "Foundation" },
+            { name: "Emma Robinson", studentId: "44100112", type: "General" },
+            { name: "Zayd Clark", studentId: "44100113", type: "General" },
+            { name: "Aria Lewis", studentId: "44100114", type: "General" },
+            { name: "Sam Wilson", studentId: "44100115", type: "General" }
+        ];
+
+        /*
+            EXACT MATHEMATICAL SPECIFICATION:
+            - 1 to 319: Foundation F
+            - 320 to 1360: General Lockers
+              * (number - 320) % 3 === 0  => 1st Tier (Top: 320, 323, 326...)
+              * (number - 320) % 3 === 1  => 2nd Tier (Middle: 321, 324, 327...)
+              * (number - 320) % 3 === 2  => 3rd Tier (Bottom: 322, 325, 328...)
+        */
+        function initLockersDataset() {
+            lockers = [];
+
+            // 1. Foundation F Lockers: 1 to 319
+            for (let i = 1; i <= 319; i++) {
+                lockers.push({
+                    number: i,
+                    tier: 'Foundation F',
+                    status: 'available', // available, allocated, reserved, broken
+                    allocatedStudentId: null,
+                    reservedReason: null,
+                    priorityOrder: 999
+                });
+            }
+
+            // 2. Main Building Lockers: 320 to 1360
+            for (let i = 320; i <= 1360; i++) {
+                let tier = '';
+                let priorityOrder = 0;
+
+                const mod = (i - 320) % 3;
+                if (mod === 0) {
+                    tier = '1st Tier';
+                    priorityOrder = 1; // Top tier filled FIRST
+                } else if (mod === 1) {
+                    tier = '2nd Tier';
+                    priorityOrder = 2; // Middle tier filled SECOND
+                } else {
+                    tier = '3rd Tier';
+                    priorityOrder = 3; // Bottom tier filled THIRD
+                }
+
+                lockers.push({
+                    number: i,
+                    tier: tier,
+                    status: 'available',
+                    allocatedStudentId: null,
+                    reservedReason: null,
+                    priorityOrder: priorityOrder
+                });
+            }
+        }
+
+        window.onload = function() {
+            initLockersDataset();
+            renderAllViews();
+        };
+
+        function renderAllViews() {
+            renderDashboardStats();
+            renderStudentsTable();
+            renderLockersGrid();
+            renderReservedTable();
+            renderResultsTable();
+            updateBadges();
+        }
+
+        function updateBadges() {
+            const badge = document.getElementById('students-count-badge');
+            if (badge) badge.innerText = students.length;
+        }
+
+        // ================= DASHBOARD =================
+        function renderDashboardStats() {
+            const totalLockers = lockers.length;
+            const allocatedCount = lockers.filter(l => l.status === 'allocated').length;
+            const reservedCount = lockers.filter(l => l.status === 'reserved' || l.status === 'broken').length;
+            const brokenCount = lockers.filter(l => l.status === 'broken').length;
+            const occRate = Math.round((allocatedCount / totalLockers) * 100);
+
+            const unassignedStudentsCount = students.filter(s => !s.allocatedLockerNumber).length;
+
+            document.getElementById('stat-total-lockers').innerText = totalLockers;
+            document.getElementById('stat-total-students').innerText = students.length;
+            document.getElementById('stat-unassigned-students').innerText = `${unassignedStudentsCount} awaiting allocation`;
+            document.getElementById('stat-allocated-lockers').innerText = allocatedCount;
+            document.getElementById('stat-allocation-rate').innerText = `${occRate}% occupancy`;
+            document.getElementById('stat-reserved-lockers').innerText = reservedCount;
+            document.getElementById('stat-broken-lockers').innerText = `${brokenCount} broken | ${reservedCount - brokenCount} reserved`;
+
+            // Tier Progress Bars Render
+            const container = document.getElementById('tier-progress-bars');
+            const tiersList = [
+                { id: '1st Tier', title: '1st Tier (Top - Priority 1: 320, 323, 326...)', color: 'bg-emerald-500' },
+                { id: '2nd Tier', title: '2nd Tier (Middle - Priority 2: 321, 324, 327...)', color: 'bg-brand-500' },
+                { id: '3rd Tier', title: '3rd Tier (Bottom - Priority 3: 322, 325, 328...)', color: 'bg-slate-700' },
+                { id: 'Foundation F', title: 'Foundation F (1–319)', color: 'bg-amber-500' }
+            ];
+
+            container.innerHTML = tiersList.map(t => {
+                const tierLockers = lockers.filter(l => l.tier === t.id);
+                const occ = tierLockers.filter(l => l.status === 'allocated').length;
+                const blk = tierLockers.filter(l => l.status === 'reserved' || l.status === 'broken').length;
+                const pct = tierLockers.length > 0 ? Math.round((occ / tierLockers.length) * 100) : 0;
+
+                return `
+                    <div>
+                        <div class="flex justify-between text-xs font-bold text-slate-700 mb-1">
+                            <span>${t.title}</span>
+                            <span>${occ} allocated | ${blk} broken/reserved (Total: ${tierLockers.length})</span>
+                        </div>
+                        <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                            <div class="${t.color} h-3 rounded-full transition-all duration-500" style="width: ${pct}%"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ================= AUTOMATED ALLOCATION ALGORITHM =================
+        function runAutoAllocation() {
+            if (students.length === 0) {
+                showToast('Please add or import student data first.', 'amber');
+                return;
+            }
+
+            // Reset active allocations (keep broken and reserved status untouched)
+            lockers.forEach(l => {
+                if (l.status === 'allocated') {
+                    l.status = 'available';
+                    l.allocatedStudentId = null;
+                }
+            });
+            students.forEach(s => s.allocatedLockerNumber = null);
+
+            // Fetch available lockers
+            const availableLockers = lockers.filter(l => l.status === 'available');
+
+            // Sort general lockers strictly by priorityOrder (1st Tier -> 2nd Tier -> 3rd Tier), then number
+            const generalAvailable = availableLockers.filter(l => l.tier !== 'Foundation F').sort((a, b) => {
+                if (a.priorityOrder !== b.priorityOrder) return a.priorityOrder - b.priorityOrder;
+                return a.number - b.number;
+            });
+
+            // Sort foundation lockers by number
+            const foundationAvailable = availableLockers.filter(l => l.tier === 'Foundation F').sort((a, b) => a.number - b.number);
+
+            let allocatedCount = 0;
+
+            students.forEach(student => {
+                let assignedLocker = null;
+
+                if (student.type === 'Foundation') {
+                    if (foundationAvailable.length > 0) {
+                        assignedLocker = foundationAvailable.shift();
+                    } else if (generalAvailable.length > 0) {
+                        // Fallback to general if foundation is full
+                        assignedLocker = generalAvailable.shift();
+                    }
+                } else {
+                    if (generalAvailable.length > 0) {
+                        assignedLocker = generalAvailable.shift();
+                    } else if (foundationAvailable.length > 0) {
+                        // Fallback to foundation if general is full
+                        assignedLocker = foundationAvailable.shift();
+                    }
+                }
+
+                if (assignedLocker) {
+                    assignedLocker.status = 'allocated';
+                    assignedLocker.allocatedStudentId = student.id;
+                    student.allocatedLockerNumber = assignedLocker.number;
+                    allocatedCount++;
+                }
+            });
+
+            renderAllViews();
+            showToast(`Successfully allocated ${allocatedCount} lockers from the top tiers without duplicates!`, 'emerald');
+        }
+
+        // ================= BROKEN LOCKER REPLACEMENT SYSTEM =================
+        function replaceBrokenLocker(studentId) {
+            const student = students.find(s => s.id === studentId);
+            if (!student || !student.allocatedLockerNumber) {
+                showToast('This student does not currently have an assigned locker to replace.', 'amber');
+                return;
+            }
+
+            const oldLockerNumber = student.allocatedLockerNumber;
+            const oldLocker = lockers.find(l => l.number === oldLockerNumber);
+
+            // Mark old locker as broken
+            if (oldLocker) {
+                oldLocker.status = 'broken';
+                oldLocker.reservedReason = `Broken (replaced for student: ${student.name})`;
+                oldLocker.allocatedStudentId = null;
+            }
+
+            // Find best available replacement locker
+            const availableLockers = lockers.filter(l => l.status === 'available');
+
+            let newLocker = null;
+
+            if (student.type === 'Foundation') {
+                newLocker = availableLockers.find(l => l.tier === 'Foundation F');
+            }
+
+            // If not found or general student, search in 1st Tier -> 2nd Tier -> 3rd Tier
+            if (!newLocker) {
+                const sorted = availableLockers.filter(l => l.tier !== 'Foundation F').sort((a, b) => {
+                    if (a.priorityOrder !== b.priorityOrder) return a.priorityOrder - b.priorityOrder;
+                    return a.number - b.number;
+                });
+                if (sorted.length > 0) {
+                    newLocker = sorted[0];
+                } else if (availableLockers.length > 0) {
+                    newLocker = availableLockers[0];
+                }
+            }
+
+            if (newLocker) {
+                newLocker.status = 'allocated';
+                newLocker.allocatedStudentId = student.id;
+                student.allocatedLockerNumber = newLocker.number;
+
+                renderAllViews();
+                showToast(`Locker #${oldLockerNumber} was marked broken and locker #${newLocker.number} was assigned to ${student.name}.`, 'emerald');
+            } else {
+                student.allocatedLockerNumber = null;
+                renderAllViews();
+                showToast(`Locker #${oldLockerNumber} was marked broken, but no replacement locker is currently available.`, 'amber');
+            }
+        }
+
+        // ================= MANUAL OVERRIDE LOCKER CHANGE =================
+        function openChangeLockerModal(studentId) {
+            const student = students.find(s => s.id === studentId);
+            if (!student) return;
+
+            document.getElementById('change-modal-student-id').value = student.id;
+            document.getElementById('change-modal-student-name').innerText = `${student.name} (${student.studentId})`;
+            document.getElementById('change-modal-locker-number').value = student.allocatedLockerNumber || '';
+
+            document.getElementById('change-locker-modal').classList.remove('hidden');
+        }
+
+        function closeChangeLockerModal() {
+            document.getElementById('change-locker-modal').classList.add('hidden');
+        }
+
+        function handleManualLockerChange(e) {
+            e.preventDefault();
+            const studentId = document.getElementById('change-modal-student-id').value;
+            const newLockerNum = parseInt(document.getElementById('change-modal-locker-number').value);
+
+            const student = students.find(s => s.id === studentId);
+            const targetLocker = lockers.find(l => l.number === newLockerNum);
+
+            if (!student || !targetLocker) {
+                showToast('Invalid locker number.', 'amber');
+                return;
+            }
+
+            if (targetLocker.status === 'allocated' && targetLocker.allocatedStudentId !== student.id) {
+                showToast(`Locker #${newLockerNum} is already assigned to another student. Choose an available locker.`, 'amber');
+                return;
+            }
+
+            if (targetLocker.status === 'reserved' || targetLocker.status === 'broken') {
+                showToast(`Locker #${newLockerNum} is reserved or disabled.`, 'amber');
+                return;
+            }
+
+            // Unassign previous locker if any
+            if (student.allocatedLockerNumber) {
+                const prevLocker = lockers.find(l => l.number === student.allocatedLockerNumber);
+                if (prevLocker && prevLocker.status === 'allocated') {
+                    prevLocker.status = 'available';
+                    prevLocker.allocatedStudentId = null;
+                }
+            }
+
+            // Assign new
+            targetLocker.status = 'allocated';
+            targetLocker.allocatedStudentId = student.id;
+            student.allocatedLockerNumber = targetLocker.number;
+
+            closeChangeLockerModal();
+            renderAllViews();
+            showToast(`Changed ${student.name}'s locker to #${targetLocker.number}.`, 'emerald');
+        }
+
+        // ================= STUDENTS & CSV =================
+        function handleCSVUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(res) {
+                    let importedCount = 0;
+                    res.data.forEach(row => {
+                        const name = row['الاسم'] || row['اسم الطالب'] || row['Name'] || row['Full Name'];
+                        const studentId = row['الرقم الجامعي'] || row['ID'] || row['Student ID'];
+                        const stage = (row['Stage'] || row['Major'] || row['Category'] || row['المرحلة'] || row['التخصص'] || row['الفئة'] || '').toString().toLowerCase();
+                        const type = stage.includes('فاونديشن') || stage.includes('foundation') ? 'Foundation' : 'General';
+
+                        if (name && studentId) {
+                            students.push({
+                                id: 'STD-' + Math.random().toString(36).substr(2, 8),
+                                name: String(name).trim(),
+                                studentId: String(studentId).trim(),
+                                type: type,
+                                allocatedLockerNumber: null
+                            });
+                            importedCount++;
+                        }
+                    });
+
+                    renderAllViews();
+                    showToast(`Successfully imported ${importedCount} students from the CSV file.`, 'emerald');
+                }
+            });
+        }
+
+        function handleAddStudent(e) {
+            e.preventDefault();
+            const name = document.getElementById('m-student-name').value.trim();
+            const studentId = document.getElementById('m-student-id').value.trim();
+            const type = document.getElementById('m-student-type').value;
+
+            students.push({
+                id: 'STD-' + Math.random().toString(36).substr(2, 8),
+                name: name,
+                studentId: studentId,
+                type: type,
+                allocatedLockerNumber: null
+            });
+
+            document.getElementById('m-student-name').value = '';
+            document.getElementById('m-student-id').value = '';
+
+            renderAllViews();
+            showToast('Student added successfully.', 'emerald');
+        }
+
+        function loadSampleStudents() {
+            students = sampleStudentList.map((s, idx) => ({
+                id: 'STD-' + (3000 + idx),
+                name: s.name,
+                studentId: s.studentId,
+                type: s.type,
+                allocatedLockerNumber: null
+            }));
+
+            // Reset allocations
+            lockers.forEach(l => {
+                if (l.status === 'allocated') {
+                    l.status = 'available';
+                    l.allocatedStudentId = null;
+                }
+            });
+
+            renderAllViews();
+            showToast('Sample student list loaded.', 'emerald');
+        }
+
+        function clearStudentsList() {
+            if (confirm('Are you sure you want to clear all registered student data?')) {
+                students = [];
+                lockers.forEach(l => {
+                    if (l.status === 'allocated') {
+                        l.status = 'available';
+                        l.allocatedStudentId = null;
+                    }
+                });
+                renderAllViews();
+                showToast('All students have been cleared.', 'slate');
+            }
+        }
+
+        function renderStudentsTable() {
+            const tbody = document.getElementById('students-table-body');
+            const q = (document.getElementById('search-students')?.value || '').toLowerCase();
+
+            const filtered = students.filter(s => s.name.toLowerCase().includes(q) || s.studentId.includes(q));
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-xs text-slate-400">No students registered. Upload a CSV or add students manually.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map((s, idx) => `
+                <tr class="hover:bg-slate-50 transition text-xs">
+                    <td class="px-4 py-3 font-bold text-slate-400">#${idx + 1}</td>
+                    <td class="px-4 py-3 font-bold text-slate-800">${s.name}</td>
+                    <td class="px-4 py-3 font-mono text-slate-600">${s.studentId}</td>
+                    <td class="px-4 py-3">${s.type === 'Foundation' ? '<span class="px-2 py-0.5 bg-amber-100 text-amber-800 rounded font-bold">Foundation F</span>' : '<span class="px-2 py-0.5 bg-slate-100 text-slate-700 rounded font-bold">General</span>'}</td>
+                    <td class="px-4 py-3 text-center">
+                        ${s.allocatedLockerNumber 
+                            ? `<span class="px-2.5 py-1 bg-emerald-100 text-emerald-800 font-bold font-mono rounded-md border border-emerald-200">#${s.allocatedLockerNumber}</span>`
+                            : `<span class="text-amber-600 font-bold">Pending</span>`}
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        <button onclick="deleteStudent('${s.id}')" class="text-rose-500 hover:text-rose-700 p-1"><i class="fa-solid fa-trash-can"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function deleteStudent(stdId) {
+            const student = students.find(s => s.id === stdId);
+            if (student && student.allocatedLockerNumber) {
+                const locker = lockers.find(l => l.number === student.allocatedLockerNumber);
+                if (locker) {
+                    locker.status = 'available';
+                    locker.allocatedStudentId = null;
+                }
+            }
+            students = students.filter(s => s.id !== stdId);
+            renderAllViews();
+        }
+
+        // ================= RESULTS TABLE WITH DIRECT EXCHANGE BUTTON =================
+        function renderResultsTable() {
+            const tbody = document.getElementById('results-table-body');
+            const q = (document.getElementById('search-results-input')?.value || '').toLowerCase();
+
+            const allocatedStudents = students.filter(s => {
+                const lockerNumStr = (s.allocatedLockerNumber || '').toString();
+                return s.allocatedLockerNumber !== null && (s.name.toLowerCase().includes(q) || s.studentId.includes(q) || lockerNumStr.includes(q));
+            });
+
+            document.getElementById('results-count-allocated').innerText = students.filter(s => s.allocatedLockerNumber !== null).length;
+
+            if (allocatedStudents.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-xs text-slate-400">No matching allocation results. Click "Run Automatic Allocation".</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = allocatedStudents.map((s, idx) => {
+                const locker = lockers.find(l => l.number === s.allocatedLockerNumber);
+                let tierBadge = '<span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-bold">1st Tier (Top)</span>';
+                if (locker) {
+                    if (locker.tier === '2nd Tier') tierBadge = '<span class="px-2 py-0.5 bg-blue-100 text-blue-800 rounded font-bold">2nd Tier (Middle)</span>';
+                    else if (locker.tier === '3rd Tier') tierBadge = '<span class="px-2 py-0.5 bg-slate-100 text-slate-800 rounded font-bold">3rd Tier (Bottom)</span>';
+                    else if (locker.tier === 'Foundation F') tierBadge = '<span class="px-2 py-0.5 bg-amber-100 text-amber-800 rounded font-bold">Foundation F</span>';
+                }
+
+                return `
+                    <tr class="hover:bg-slate-50 transition text-xs">
+                        <td class="px-4 py-3 font-bold text-slate-400">#${idx + 1}</td>
+                        <td class="px-4 py-3 font-bold text-slate-800">${s.name}</td>
+                        <td class="px-4 py-3 font-mono text-slate-600">${s.studentId}</td>
+                        <td class="px-4 py-3">${s.type}</td>
+                        <td class="px-4 py-3 text-center font-black font-mono text-emerald-700 text-sm">#${s.allocatedLockerNumber}</td>
+                        <td class="px-4 py-3 text-center">${tierBadge}</td>
+                        <td class="px-4 py-3 text-center">
+                            <div class="flex items-center justify-center gap-1.5">
+                                <button onclick="replaceBrokenLocker('${s.id}')" title="Mark the current locker as broken and replace it" class="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-lg border border-rose-200 transition flex items-center gap-1">
+                                    <i class="fa-solid fa-triangle-exclamation text-amber-500"></i>
+                                    <span>⚠️ Broken / Replace</span>
+                                </button>
+                                <button onclick="openChangeLockerModal('${s.id}')" title="Change locker manually" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg border border-slate-300 transition flex items-center gap-1">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                    <span>Change Manually</span>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // ================= LOCKERS GRID MAP =================
+        function setMapTier(tierName) {
+            currentMapTier = tierName;
+            document.querySelectorAll('.map-tier-btn').forEach(btn => {
+                btn.classList.remove('bg-brand-600', 'text-white');
+                btn.classList.add('bg-slate-100', 'text-slate-700');
+            });
+
+            const activeBtn = document.getElementById(`btn-tier-${tierName}`);
+            if (activeBtn) {
+                activeBtn.classList.add('bg-brand-600', 'text-white');
+                activeBtn.classList.remove('bg-slate-100', 'text-slate-700');
+            }
+
+            renderLockersGrid();
+        }
+
+        function renderLockersGrid() {
+            const container = document.getElementById('lockers-grid-container');
+            const searchVal = parseInt(document.getElementById('map-search-input')?.value);
+
+            let tierLockers = lockers.filter(l => l.tier === currentMapTier);
+
+            if (!isNaN(searchVal)) {
+                tierLockers = tierLockers.filter(l => l.number === searchVal);
+            }
+
+            document.getElementById('map-section-title').innerText = `Lockers: ${currentMapTier}`;
+            document.getElementById('map-section-count').innerText = `${tierLockers.length} lockers`;
+
+            if (tierLockers.length === 0) {
+                container.innerHTML = `<div class="col-span-full text-center py-8 text-xs text-slate-400">No matching lockers found.</div>`;
+                return;
+            }
+
+            container.innerHTML = tierLockers.map(l => {
+                let statusBg = 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100';
+                let icon = 'fa-lock-open text-emerald-500';
+
+                if (l.status === 'allocated') {
+                    statusBg = 'bg-rose-50 border-rose-300 text-rose-800 hover:bg-rose-100';
+                    icon = 'fa-lock text-rose-500';
+                } else if (l.status === 'reserved' || l.status === 'broken') {
+                    statusBg = 'bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100';
+                    icon = 'fa-ban text-amber-500';
+                }
+
+                return `
+                    <div onclick="openLockerModal(${l.number})" class="locker-card cursor-pointer border rounded-xl p-2 flex flex-col items-center justify-between text-center ${statusBg} transition">
+                        <i class="fa-solid ${icon} text-xs mb-1"></i>
+                        <span class="font-black text-xs font-mono">#${l.number}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ================= RESERVED & BROKEN LOCKERS =================
+        function handleBlockLockerSubmit(e) {
+            e.preventDefault();
+            const inputVal = document.getElementById('blocked-input').value.trim();
+            const reason = document.getElementById('blocked-reason').value.trim() || 'Maintenance / Administrative reservation';
+
+            let numbersToBlock = [];
+
+            if (inputVal.includes('-')) {
+                const parts = inputVal.split('-').map(p => parseInt(p.trim()));
+                if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                    const min = Math.min(parts[0], parts[1]);
+                    const max = Math.max(parts[0], parts[1]);
+                    for (let n = min; n <= max; n++) numbersToBlock.push(n);
+                }
+            } else if (inputVal.includes(',')) {
+                numbersToBlock = inputVal.split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+            } else {
+                const num = parseInt(inputVal);
+                if (!isNaN(num)) numbersToBlock.push(num);
+            }
+
+            let blockedSuccessCount = 0;
+
+            numbersToBlock.forEach(num => {
+                const locker = lockers.find(l => l.number === num);
+                if (locker) {
+                    locker.status = 'reserved';
+                    locker.reservedReason = reason;
+                    locker.allocatedStudentId = null;
+                    blockedSuccessCount++;
+                }
+            });
+
+            document.getElementById('blocked-input').value = '';
+            document.getElementById('blocked-reason').value = '';
+
+            renderAllViews();
+            showToast(`Successfully disabled ${blockedSuccessCount} lockers.`, 'amber');
+        }
+
+        function unblockLocker(num) {
+            const locker = lockers.find(l => l.number === num);
+            if (locker) {
+                locker.status = 'available';
+                locker.reservedReason = null;
+            }
+            renderAllViews();
+            showToast(`Locker #${num} is available again.`, 'emerald');
+        }
+
+        function unblockAllLockers() {
+            if (confirm('Are you sure you want to enable all reserved and disabled lockers?')) {
+                lockers.forEach(l => {
+                    if (l.status === 'reserved' || l.status === 'broken') {
+                        l.status = 'available';
+                        l.reservedReason = null;
+                    }
+                });
+                renderAllViews();
+                showToast('All lockers are now available.', 'emerald');
+            }
+        }
+
+        function renderReservedTable() {
+            const tbody = document.getElementById('reserved-table-body');
+            const reserved = lockers.filter(l => l.status === 'reserved' || l.status === 'broken');
+
+            if (reserved.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-xs text-slate-400">There are no reserved or broken lockers.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = reserved.map(l => `
+                <tr class="hover:bg-slate-50 transition text-xs">
+                    <td class="px-4 py-3 font-bold font-mono text-amber-700">#${l.number}</td>
+                    <td class="px-4 py-3 font-bold">${l.tier}</td>
+                    <td class="px-4 py-3 text-slate-600">${l.reservedReason || (l.status === 'broken' ? 'Broken' : 'Administrative reservation')}</td>
+                    <td class="px-4 py-3 text-center">
+                        <button onclick="unblockLocker(${l.number})" class="text-emerald-600 hover:text-emerald-800 font-bold px-2 py-1 rounded border border-emerald-200 bg-emerald-50">Enable</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // ================= EXPORT & MODALS =================
+        function exportResultsToCSV() {
+            const allocatedStudents = students.filter(s => s.allocatedLockerNumber !== null);
+            if (allocatedStudents.length === 0) {
+                showToast('There are no allocation results to export.', 'amber');
+                return;
+            }
+
+            const exportData = allocatedStudents.map((s, idx) => {
+                const locker = lockers.find(l => l.number === s.allocatedLockerNumber);
+                return {
+                    "No.": idx + 1,
+                    "Student Name": s.name,
+                    "Student ID": s.studentId,
+                    "Stage/Category": s.type,
+                    "Assigned Locker": s.allocatedLockerNumber,
+                    "Tier": locker ? locker.tier : ''
+                };
+            });
+
+            const csv = Papa.unparse(exportData);
+            const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `locker-allocation-report-${new Date().toISOString().slice(0,10)}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            showToast('CSV report exported successfully.', 'emerald');
+        }
+
+        function openLockerModal(num) {
+            const locker = lockers.find(l => l.number === num);
+            if (!locker) return;
+
+            document.getElementById('m-modal-number').innerText = `Locker #${locker.number}`;
+            document.getElementById('m-modal-tier').innerText = locker.tier;
+
+            const modalBody = document.getElementById('m-modal-body');
+
+            if (locker.status === 'allocated') {
+                const student = students.find(s => s.id === locker.allocatedStudentId);
+                modalBody.innerHTML = `
+                    <div class="p-4 bg-rose-50 border border-rose-200 rounded-xl space-y-1 text-xs">
+                        <p class="font-bold text-rose-800">Status: Assigned</p>
+                        <p class="text-slate-800 font-bold text-sm">${student ? student.name : 'Student'}</p>
+                        <p class="text-slate-600 font-mono">Student ID: ${student ? student.studentId : '-'}</p>
+                    </div>
+                `;
+            } else if (locker.status === 'reserved' || locker.status === 'broken') {
+                modalBody.innerHTML = `
+                    <div class="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-1 text-xs">
+                        <p class="font-bold text-amber-800">Status: ${locker.status === 'broken' ? 'Broken' : 'Reserved'}</p>
+                        <p class="text-slate-700">${locker.reservedReason || 'Maintenance'}</p>
+                    </div>
+                    <button onclick="unblockLocker(${locker.number}); closeLockerModal();" class="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition">Enable Locker</button>
+                `;
+            } else {
+                modalBody.innerHTML = `
+                    <div class="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-center text-xs text-emerald-800 font-bold">
+                        This locker is available for allocation.
+                    </div>
+                `;
+            }
+
+            document.getElementById('locker-modal').classList.remove('hidden');
+        }
+
+        function closeLockerModal() {
+            document.getElementById('locker-modal').classList.add('hidden');
+        }
+
+        function confirmResetAllocations() {
+            if (confirm('Reset all allocations while keeping the student list and disabled lockers?')) {
+                lockers.forEach(l => {
+                    if (l.status === 'allocated') {
+                        l.status = 'available';
+                        l.allocatedStudentId = null;
+                    }
+                });
+                students.forEach(s => s.allocatedLockerNumber = null);
+                renderAllViews();
+                showToast('Allocations have been reset.', 'slate');
+            }
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(el => {
+                el.classList.remove('bg-brand-600', 'text-white');
+                el.classList.add('text-slate-300', 'hover:bg-slate-800');
+            });
+
+            document.getElementById(`content-${tabId}`).classList.remove('hidden');
+            const activeBtn = document.getElementById(`tab-${tabId}`);
+            if (activeBtn) {
+                activeBtn.classList.add('bg-brand-600', 'text-white');
+                activeBtn.classList.remove('text-slate-300', 'hover:bg-slate-800');
+            }
+        }
+
+        function showToast(msg, type = 'emerald') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bg = type === 'emerald' ? 'bg-emerald-600' : (type === 'amber' ? 'bg-amber-600' : 'bg-slate-800');
+
+            toast.className = `${bg} text-white text-xs font-bold px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 transform transition-all duration-300 translate-y-2 opacity-0`;
+            toast.innerHTML = `<i class="fa-solid fa-info-circle"></i><span>${msg}</span>`;
+
+            container.appendChild(toast);
+            setTimeout(() => toast.classList.remove('translate-y-2', 'opacity-0'), 10);
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+    </script>
+</body>
+</html>
